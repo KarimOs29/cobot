@@ -1,25 +1,32 @@
 {
-    "name": "Ubuntu 24.04 with VNC",
-    "dockerFile": "Dockerfile",
-    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
-    "workspaceFolder": "/workspace",
-    "customizations": {
-        "vscode": {
-            "settings": {
-                "terminal.integrated.shell.linux": "/bin/bash"
-            }
-        }
-    },
-    "appPort": [
-        "6080:80"
-    ],
-    "remoteUser": "ubuntu",
-    "overrideCommand": false,
-    "runArgs": [
-        "--hostname=ros2-vnc-docker",
-        "--shm-size=512m",
-        "--init",
-        "--security-opt",
-        "seccomp=unconfined"
-    ]
+  "name": "Ubuntu 24.04 with VNC",
+  "dockerFile": "Dockerfile",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+      }
+    }
+  },
+  "appPort": [
+    "6080:80"
+  ],
+  "remoteUser": "ubuntu",
+  "overrideCommand": false,
+  "runArgs": [
+    "--hostname=ros2-vnc-docker",
+    "--shm-size=512m",
+    "--init",
+    "--security-opt", "seccomp=unconfined",
+
+    "--device=/dev/snd",
+    "--group-add", "adm",
+
+    "--env", "PULSE_SERVER=unix:/run/user/1011/pulse/native",
+    "--volume", "/run/user/1011/pulse:/run/user/1011/pulse",
+    "--volume", "/etc/machine-id:/etc/machine-id:ro"
+  ],
+  "postCreateCommand": "sudo apt update && sudo apt install -y portaudio19-dev pulseaudio python3-venv && python3 -m venv /home/ubuntu/.venv && /home/ubuntu/.venv/bin/pip install --upgrade pip && /home/ubuntu/.venv/bin/pip install pyaudio"
 }
