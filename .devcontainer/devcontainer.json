@@ -22,11 +22,15 @@
     "--security-opt", "seccomp=unconfined",
 
     "--device=/dev/snd",
-    "--group-add", "adm",
-
-    "--env", "PULSE_SERVER=unix:/run/user/1011/pulse/native",
-    "--volume", "/run/user/1011/pulse:/run/user/1011/pulse",
-    "--volume", "/etc/machine-id:/etc/machine-id:ro"
+    //"--group-add", "adm",
+    "--group-add=audio",
+    //"--env", "PULSE_SERVER=unix:/run/user/1011/pulse/native",
+    //"--volume", "/run/user/1011/pulse:/run/user/1011/pulse",
+    //"--volume", "/etc/machine-id:/etc/machine-id:ro"
+    //"--env", "PULSE_SERVER=host.docker.internal",
+    //"--env", "PULSE_SERVER=${PULSE_SERVER}",
+    "--env", "PULSE_SERVER=/mnt/wslg/PulseServer",
+    "--volume", "/mnt/wslg:/mnt/wslg/"
   ],
   "postCreateCommand": "sudo apt update && sudo apt install -y portaudio19-dev pulseaudio python3-venv && python3 -m venv /home/ubuntu/.venv && /home/ubuntu/.venv/bin/pip install --upgrade pip && /home/ubuntu/.venv/bin/pip install pyaudio"
 }
