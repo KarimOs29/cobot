@@ -1,55 +1,120 @@
 import sounddevice as sd
 import queue
 import json
+import numpy as np
+import threading
 from vosk import Model, KaldiRecognizer
 
-# === VOSK-Spracherkennungsmodell laden ===
-# Das Modell muss vorher lokal heruntergeladen und entpackt worden sein
-model = Model("vosk-model-small-de-0.15")          # Deutsches Offline-Modell
-recognizer = KaldiRecognizer(model, 16000)         # Initialisiert mit Modell und Samplerate
+# === Konfiguration ===
+vosk_samplerate = 16000
+q = queue.Queue()
+stop_flag = threading.Event()
 
-samplerate = 16000                                 # Abtastrate in Hz
-q = queue.Queue()                                  # Queue zur Übergabe der Audio-Frames
+# === Mikrofonwahl: PulseAudio bevorzugt, sonst USB oder Fallback ===
+def finde_mikro_index():
+    try:
+        # PulseAudio wird unterstützt, aber nicht als Gerät gelistet – deshalb zuerst testen
+        sd.check_input_settings(device='pulse')
+        print("🔍 Versuche PulseAudio zu verwenden ...")
+        return 'pulse'
+    except Exception:
+        print("⚠️ PulseAudio nicht verfügbar – verwende alternatives Gerät")
 
-# === Callback-Funktion: Audio wird live in die Queue geschrieben ===
-def callback(indata, frames, time, status):
-    if status:
-        print("⚠️ Status:", status)                # Zeigt ggf. Warnungen von Sounddevice
-    q.put(bytes(indata))                           # Audioframe als Bytes in die Queue legen
+    usb_index = None
+    fallback_index = None
+    for idx, device in enumerate(sd.query_devices()):
+        if device['max_input_channels'] >= 1:
+            name = device['name'].lower()
+            if "usb" in name:
+                usb_index = idx
+                break
+            elif fallback_index is None:
+                fallback_index = idx
 
-# === Sprachsteuerung: wartet auf "start", verarbeitet Sprache, stoppt bei "stopp" ===
-def sprachsteuerung():
-    print("⏳ Warte auf Sprachbefehl 'start'...")
+    if usb_index is not None:
+        print(f"🔌 USB-Mikrofon gefunden: Index {usb_index}")
+        return usb_index
+    elif fallback_index is not None:
+        print(f"🎤 Kein USB-Mikro, nutze anderes Mikrofon: Index {fallback_index}")
+        return fallback_index
+    else:
+        raise RuntimeError("❌ Kein Mikrofon gefunden")
 
-    # Mikrofon-Eingabestream starten
-    with sd.RawInputStream(samplerate=samplerate, blocksize=8000,
-                           dtype='int16', channels=1, callback=callback):
+# === Callback: Float32 → Resample → Int16 → Queue
+def create_callback(native_sr):
+    factor = vosk_samplerate / native_sr
+
+    def callback(indata, frames, time, status):
+        if status:
+            print("⚠️ Status:", status)
+        # Mono, float32 → int16
+        data = indata[:, 0] * 32767
+        # Resample (linear)
+        resampled = np.interp(
+            np.arange(0, len(data), 1 / factor),
+            np.arange(len(data)),
+            data
+        ).astype(np.int16)
+        q.put(resampled.tobytes())
+    return callback
+
+# === Verarbeitungs-Thread ===
+def audio_verarbeitung(recognizer):
+    aktiviert = False
+    print("⏳ Warte auf Sprachbefehl 'starten'...")
+    while not stop_flag.is_set():
         try:
-            aktiviert = False                      # Anfangszustand: Spracheingabe deaktiviert
+            data = q.get(timeout=1)
+        except queue.Empty:
+            continue
 
-            while True:
-                data = q.get()                     # Hole nächsten Audioblock aus der Queue
+        if recognizer.AcceptWaveform(data):
+            result = json.loads(recognizer.Result())
+            text = result.get("text", "").lower()
 
-                if recognizer.AcceptWaveform(data):
-                    result = recognizer.Result()   # JSON-Ergebnis von VOSK
-                    text = json.loads(result)["text"].lower()  # Transkribierter Text (klein)
+            if not aktiviert and "starten" in text:
+                print("🎙 Sprachsteuerung aktiviert – du kannst jetzt sprechen.")
+                aktiviert = True
+            elif aktiviert:
+                if text:
+                    print("→", text)
+                    if "stoppen" in text:
+                        print("🛑 Sprachbefehl 'stoppen' erkannt.")
+                        stop_flag.set()
+                        break
 
-                    if not aktiviert:
-                        if "start" in text:
-                            print("🎙 Sprachsteuerung aktiviert – du kannst jetzt sprechen.")
-                            aktiviert = True
-                    else:
-                        if text:
-                            print("→", text)       # Ausgabe des gesprochenen Textes
+# === Hauptfunktion ===
+def sprachsteuerung():
+    print("📦 Lade VOSK-Modell ...")
+    model = Model("vosk-model-small-de-0.15")
+    recognizer = KaldiRecognizer(model, vosk_samplerate)
 
-                            if "stopp" in text:
-                                print("🛑 Sprachbefehl 'stopp' erkannt. Aufnahme wird beendet.")
-                                break
+    print("🔍 Eingabegerät auswählen ...")
+    device_index = finde_mikro_index()
+    device_info = sd.query_devices(device_index, kind="input")
+    native_sr = int(device_info['default_samplerate'])
+    print(f"🎙 Gerät: {device_info['name']} – Sample Rate: {native_sr} Hz")
 
-        except KeyboardInterrupt:
-            print("\n🔌 Manuell beendet mit Strg+C")
+    # Verarbeitungs-Thread starten
+    thread = threading.Thread(target=audio_verarbeitung, args=(recognizer,), daemon=True)
+    thread.start()
 
-    print("✅ Aufnahme sauber beendet.")
+    try:
+        with sd.InputStream(samplerate=native_sr,
+                            blocksize=1024,        # kleinerer Block hilft gegen Overflow
+                            latency='high',        # oder z.B. latency=0.2
+                            device=device_index,
+                            dtype='float32',
+                            channels=1,
+                            callback=create_callback(native_sr)):
+            while not stop_flag.is_set():
+                sd.sleep(100)
+    except KeyboardInterrupt:
+        print("🔌 Strg+C gedrückt – stoppen...")
+        stop_flag.set()
+    thread.join()
+    print("✅ Aufnahme beendet.")
 
-# === Hauptprogramm starten ===
-sprachsteuerung()
+# === Startpunkt ===
+if __name__ == "__main__":
+    sprachsteuerung()
