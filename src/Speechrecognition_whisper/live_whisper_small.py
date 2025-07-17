@@ -7,14 +7,14 @@ import time
 from faster_whisper import WhisperModel
 from collections import deque
 
-# === Whisper-Modell laden ===
-model = WhisperModel("base", device="cpu", compute_type="int8")
+# === Whisper-Modell laden (genauer als 'base') ===
+model = WhisperModel("small", device="cpu", compute_type="int8")
 
 # === Audioaufnahme-Einstellungen ===
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
-CHUNK = 1024
-BLOCK_SECONDS = 4
+CHUNK = 2048
+BLOCK_SECONDS = 3  # mehr Kontext → bessere Erkennung
 
 p = pyaudio.PyAudio()
 
@@ -33,7 +33,7 @@ if DEVICE_INDEX is None:
 # === Abtastrate ermitteln und setzen ===
 info = p.get_device_info_by_index(DEVICE_INDEX)
 INPUT_RATE = int(info["defaultSampleRate"])  # z. B. 44100
-TARGET_RATE = 16000  # für Whisper
+TARGET_RATE = 16000  # Whisper erwartet 16 kHz
 
 print(f"🎚 Mikrofon-Sample-Rate: {INPUT_RATE} Hz")
 print(f"🎯 Ziel-Sample-Rate für Whisper: {TARGET_RATE} Hz")
@@ -46,7 +46,7 @@ stream = p.open(format=FORMAT,
                 input_device_index=DEVICE_INDEX,
                 frames_per_buffer=CHUNK)
 
-print("System bereit. Sage 'start' zum Aktivieren oder 'stopp' zum Beenden.")
+print("🟢 System bereit. Sage 'start' zum Aktivieren oder 'stopp' zum Beenden.")
 
 buffer = deque()
 block_size = int(INPUT_RATE * BLOCK_SECONDS / CHUNK)
@@ -64,37 +64,38 @@ try:
             audio_bytes = b''.join(frames)
             audio_np = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
-            # === Resample auf 16000 Hz ===
+            # === Resample auf 16 kHz ===
             audio_np_resampled = librosa.resample(audio_np, orig_sr=INPUT_RATE, target_sr=TARGET_RATE)
 
-            # === In WAV schreiben und transkribieren ===
+            # === WAV schreiben → Whisper analysieren ===
             with io.BytesIO() as wav_io:
                 sf.write(wav_io, audio_np_resampled, TARGET_RATE, format='WAV')
                 wav_io.seek(0)
 
                 segments, _ = model.transcribe(wav_io, language="de")
-                full_text = ""
-                for segment in segments:
-                    full_text += segment.text.lower() + " "
+                full_text = " ".join(segment.text.lower().strip() for segment in segments)
 
-                if "start" in full_text and not aktiviert:
-                    aktiviert = True
-                    print("Sprachsteuerung aktiviert.")
-                    continue
+                if not full_text.strip():
+                    continue  # keine Sprache erkannt
 
-                if "stopp" in full_text and aktiviert:
-                    print("Sprachbefehl 'stopp' erkannt. Beende...")
+                if not aktiviert:
+                    if "start" in full_text:
+                        aktiviert = True
+                        print("🟢 Sprachsteuerung aktiviert")
+                    continue  # bis "start" ignorieren
+
+                if "stopp" in full_text or "stop" in full_text:
+                    print("🛑 Sprachsteuerung beendet")
                     break
 
-                if aktiviert and full_text.strip():
-                    print("→", full_text.strip())
-                    time.sleep(1.5)
+                print(full_text.strip())
+                
 
 except KeyboardInterrupt:
     print("\n🔌 Manuell beendet mit Strg+C")
 
-# Aufräumen
+# === Aufräumen ===
 stream.stop_stream()
 stream.close()
 p.terminate()
-print("Aufnahme sauber beendet.")
+print("✅ Aufnahme sauber beendet.")

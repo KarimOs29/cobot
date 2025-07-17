@@ -1,0 +1,6 @@
+Datei,Referenztext,Whisper-Ausgabe,WER Whisper,VOSK-Ausgabe,WER VOSK
+audio_01,"hey roboter, starten","hey robota, starten!",0.667,hey roboter starten,0.333
+audio_02,bewege dich nach rechts und danach nach links,bewege dich nach rechts und danach nach links.,0.125,bewege dich nach rechts und danach nach links,0.0
+audio_03,"hey roboter, ich möchte dass du jetzt die tasse aufhebst","hey roboter, ich möchte das jetzt die tasse aufhipps.",0.3,hi roboter ich möchte dass sie jetzt die tasse aufhebt,0.4
+audio_04,"hey roboter, kannst du folgende befehle ausführen","hey roboter, kannst du folgende befehle ausführen.",0.143,hi roboter kannst du folgende befehle ausführen,0.286
+audio_05,"okey roboter, jetzt sind wir fertig bitte beende","okay roboter, jetzt sind wir fertig. bitte beende.",0.375,okay roboter jetzt sind wir fertig bitte beende,0.25
