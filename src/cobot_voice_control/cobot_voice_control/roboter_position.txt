@@ -1,0 +1,44 @@
+
+Robotersteuerung per Sprachbefehl – ROS2 Node
+
+GESAMTAUFBAU UND FUNKTIONSWEISE:
+
+1. Roboter-Koordinaten:
+    - Der Roboter hat drei Koordinaten: X, Y, Z
+    - Diese werden in der Klasse RoboterPosition verwaltet (statisch)
+
+ 2. Sprachbefehl-Empfang:
+    - Der Node hört auf das Topic /roboter_befehl (String)
+    - Ein externer Node (z. B. Spracherkennung mit VOSK) publiziert hier Befehle
+
+ 3. Bewegungslogik:
+    - Befehle wie "gehe nach oben", "gehe nach rechts" etc. ändern X, Y, Z
+    - Am Ende eines Befehls kann eine Zahl stehen (z. B. "gehe nach oben 10")
+      → Der Roboter bewegt sich dann mehrfach entsprechend dieser Zahl
+
+ 4. Zielkoordinaten:
+    - Der Befehl "gehe zu X Y Z" bewegt den Roboter schrittweise zu
+den angegebenen Zielkoordinaten
+    - Dabei wird jede Achse nacheinander angefahren (erst X, dann Y, dann Z)
+
+ 5. Startposition:
+    - Mit "merke neue startposition" wird der aktuelle Zustand als
+neue Startposition gespeichert
+    - Mit "zur startposition zurück" fährt der Roboter schrittweise
+dorthin zurück
+
+ 6. Ausgabe:
+    - Der Roboter publiziert seine aktuelle Position nach jeder
+Bewegung auf das Topic /roboter_position (String)
+
+FINALES ERGEBNIS:
+
+ Sprachgesteuerte, flexible Robotersteuerung über ROS2
+ Frei kombinierbare Achsenbewegung mit variabler Schrittzahl
+ Speichern & Zurückkehren zur Startposition
+ Kompatibel mit externer Spracherkennung via ROS2 Topics
+
+
+
+
+
