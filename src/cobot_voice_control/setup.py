@@ -19,9 +19,8 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [ 
-            'cobot_vc = cobot_voice_control.cobot_vc.py:main',
-            'vosk_interface = cobot_voice_control.vosk_interface.py:main'
+        'console_scripts': [
+            'cobot_vc = cobot_voice_control.cobot_vc:main'
         ],
     },
 )

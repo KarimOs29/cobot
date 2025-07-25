@@ -11,6 +11,11 @@
   <depend>cobot_model</depend>
   <depend>cobot_moveit_config</depend>
   <depend>moveit_ros_planning_interface</depend>
+  <depend>moveit_core</depend>
+  <depend>moveit_configs_utils</depend>
+  <depend>moveit_planning</depend>
+  <depend>moveit_msgs</depend>
+  <depend>shape_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -1,6 +1,7 @@
 import re
 import time
 import rclpy
+import sys
 from geometry_msgs.msg import PoseStamped
 from moveit_configs_utils import MoveItConfigsBuilder
 from moveit.planning import MoveItPy
@@ -29,22 +30,27 @@ class RoboterPosition:
 
     @classmethod
     def bewege_x(cls, delta):
-        cls.x += delta
-        print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
+        cls.x = delta
+        cls.y = 0
+        cls.z = 0
+        #print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
 
     @classmethod
     def bewege_y(cls, delta):
-        cls.y += delta
-        print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
+        cls.x = 0
+        cls.y = delta
+        cls.z = 0
+        #print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
 
     @classmethod
     def bewege_z(cls, delta):
-        cls.z += delta
-        print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
+        cls.x = 0
+        cls.y = 0
+        cls.z = delta
+        #print(f"X: {cls.x}", f"Y: {cls.y}", f"Z: {cls.z}")
 
     @classmethod
     def aktuelle_position(cls):
-        cls.aktualisiere_aus_moveit()
         return (cls.x, cls.y, cls.z)
 
     @classmethod
@@ -127,33 +133,33 @@ class RoboterPosition:
 
 # --- Bewegungstabelle mit Richtungen ---
 BEWEGUNGSBEFEHLE = {
-    "gehe nach oben": ("y", -0.10),
-    "inkrementiere y": ("y", -0.10),
-    "nach oben": ("y", -0.10),
-    "gehe hoch": ("y", -0.10),
-    "bewege dich hoch": ("y", -0.10),
-    "oben": ("y", -0.10),
+    "gehe nach oben": ("z", 0.10),
+    "inkrementiere z": ("z", 0.10),
+    "nach oben": ("z", 0.10),
+    "gehe hoch": ("z", 0.10),
+    "bewege dich hoch": ("z", 0.10),
+    "oben": ("z", 0.10),
 
-    "gehe nach unten": ("y", 0.10),
-    "unten": ("y", 0.10),
-    "dekrementiere y": ("y", 0.10),
-    "nach unten": ("y", 0.10),
-    "gehe runter": ("y", 0.10),
-    "bewege dich runter": ("y", 0.10),
+    "gehe nach unten": ("z", -0.10),
+    "unten": ("z", -0.10),
+    "dekrementiere z": ("z", -0.10),
+    "nach unten": ("z", -0.10),
+    "gehe runter": ("z", -0.10),
+    "bewege dich runter": ("z", -0.10),
 
-    "gehe nach vorne": ("z", -0.10),
-    "vorne": ("z", -0.10),
-    "inkrementiere z": ("z", -0.10),
-    "nach vorne": ("z", -0.10),
-    "gehe vor": ("z", -0.10),
-    "bewege dich vor": ("z", -0.10),
+    "gehe nach vorne": ("y", 0.10),
+    "vorne": ("y", 0.10),
+    "inkrementiere y": ("y", 0.10),
+    "nach vorne": ("y", 0.10),
+    "gehe vor": ("y", 0.10),
+    "bewege dich vor": ("y", 0.10),
 
-    "gehe nach hinten": ("z", 0.10),
-    "hinten": ("z", 0.10),
-    "dekrementiere z": ("z", 0.10),
-    "nach hinten": ("z", 0.10),
-    "gehe zurück": ("z", 0.10),
-    "bewege dich zurück": ("z", 0.10),
+    "gehe nach hinten": ("y", -0.10),
+    "hinten": ("y", -0.10),
+    "dekrementiere y": ("y", -0.10),
+    "nach hinten": ("y", -0.10),
+    "gehe zurück": ("y", -0.10),
+    "bewege dich zurück": ("y", -0.10),
 
     "gehe nach rechts": ("x", -0.10),
     "rechts": ("x", -0.10),
@@ -171,54 +177,74 @@ BEWEGUNGSBEFEHLE = {
 }
 
 SONSTIGE_BEFEHLE = {
-    "merke neue startposition": lambda: RoboterPosition.merke_startposition(),
-    "zur startposition zurück": lambda: RoboterPosition.gehe_zur_startposition(),
-    "greife": lambda: RoboterPosition.greife(),
-    "lass los": lambda: RoboterPosition.lass_los(),
-    "sauger an": lambda: RoboterPosition.sauger_an(),
-    "sauger aus": lambda: RoboterPosition.sauger_aus()
+    "merke neue startposition": "speichere_startposition",
+    "merke startposition": "speichere_startposition",
+    "zur startposition zurück": "zu_startposition",
+    "startposition": "zu_startposition"
+    #"greife": lambda: RoboterPosition.greife(),
+    #"lass los": lambda: RoboterPosition.lass_los(),
+    #"sauger an": lambda: RoboterPosition.sauger_an(),
+    #"sauger aus": lambda: RoboterPosition.sauger_aus()
 }
 
 def verarbeite_befehl(text):
     text = text.lower().strip()
 
-    match = re.match(r"gehe zu (-?\d+\.?\d*) (-?\d+\.?\d*) (-?\d+\.?\d*)", text)
-    if match:
-        x, y, z = map(float, match.groups())
-        RoboterPosition.schrittweise_bewegen(x, y, z)
-        return RoboterPosition.aktueller_zustand()
-
     match = re.match(r"^(.*?)(?:\s(\d+))?$", text)
     if match:
         befehl = match.group(1).strip()
+        print('group: ', match.group(1), ' --- ', match.group(2))
         anzahl = int(match.group(2)) if match.group(2) else 1
 
+        # Bewegungsbefehle
         for key, (achse, richtung) in BEWEGUNGSBEFEHLE.items():
-            if key in befehl:
-                print('BEFEHL PARSER')
-                print(befehl)
-                print(key)
-                return befehl
+            if befehl.startswith(key):
+                print('Befehl erkannt: ', key)
 
-            if achse == "x":
-                RoboterPosition.bewege_x(richtung * anzahl)
-            elif achse == "y":
-                RoboterPosition.bewege_y(richtung * anzahl)
-            elif achse == "z":
-                RoboterPosition.bewege_z(richtung * anzahl)
-            return RoboterPosition.aktueller_zustand()
+                if achse == "x":
+                    RoboterPosition.bewege_x(richtung * anzahl)
+                elif achse == "y":
+                    RoboterPosition.bewege_y(richtung * anzahl)
+                elif achse == "z":
+                    RoboterPosition.bewege_z(richtung * anzahl)
+                else: 
+                    print('ungueltige Achse')
+                    continue
+
+                return RoboterPosition.aktueller_zustand()
+
+        # Sonstige Befehle
+        for key, argument in SONSTIGE_BEFEHLE.items():
+            if befehl.startswith(key):
+                print('Befehl erkannt: ', key)
+                return {"befehl": argument}
 
     
     else:
-        """ for befehl in SONSTIGE_BEFEHLE:
-            SONSTIGE_BEFEHLE[befehl]()
-        return RoboterPosition.aktueller_zustand() """
-
         print("Befehl nicht erkannt:", text)
         return { "befehl": "UNKNOWN_COMMAND" }
 
 
 if __name__ == "__main__":
+    examples = [
+        'gehe nach rechts',
+        'gehe nach rechts 1',
+        'gehe nach rechts',
+        'gehe nach links',
+        'gehe nach rechts drei',
+        'nach rechts',
+        'nach links',
+        'gehe auf keinen Fall rechts',
+        'startposition',
+        'merke startposition'
+    ] 
+    for sample_text in examples:
+        print('\n\nInput: ', sample_text)
+        cmd = verarbeite_befehl(sample_text)
+        print('Befehl:', cmd)
+
+    sys.exit(0)
+
     while True:
         eingabe = input("Befehl: ")
         result = verarbeite_befehl(eingabe)

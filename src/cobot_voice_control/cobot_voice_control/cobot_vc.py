@@ -82,6 +82,11 @@ def plan_and_execute(
 
 
     # hier unsere funktion move_relative drum
+def cobot_get_position(cobot_arm):
+    current_state = cobot_arm.get_start_state()
+    current_pose = current_state.get_pose("TCP")
+    return current_pose
+
 def cobot_move_relative(cobot, cobot_arm, logger, dx, dy, dz):
     current_state = cobot_arm.get_start_state()
     current_pose = current_state.get_pose("TCP")
@@ -92,6 +97,58 @@ def cobot_move_relative(cobot, cobot_arm, logger, dx, dy, dz):
     pose_goal.pose.position.x = pose_goal.pose.position.x + dx
     pose_goal.pose.position.y = pose_goal.pose.position.y + dy
     pose_goal.pose.position.z = pose_goal.pose.position.z + dz
+
+    # set a tolerance for the goal
+    # this is required in order to relax the constraints on the planner
+    # if not set, there will be hardly a solution found
+    # this might be an issue with our cobot but could also be an issue
+    # resulting from the usage of std param values for the planner config
+    constraints = Constraints()
+    position_constraint = PositionConstraint()
+    position_constraint.header.frame_id = "base_link"
+    position_constraint.link_name = "TCP"
+    sphere = SolidPrimitive()
+    sphere.type = SolidPrimitive.SPHERE
+    sphere.dimensions = [0.1]  # 10 cm radius
+    position_constraint.constraint_region.primitives.append(sphere)
+    position_constraint.constraint_region.primitive_poses.append(pose_goal.pose)
+    position_constraint.weight = 0.8
+    constraints.position_constraints.append(position_constraint)
+    # set the goal state with tolerance of 5cm
+
+    orientation_constraint = OrientationConstraint()
+    orientation_constraint.header.frame_id = "base_link"
+    orientation_constraint.link_name = "TCP"
+    orientation_constraint.orientation = pose_goal.pose.orientation
+    orientation_constraint.absolute_x_axis_tolerance = 0.3  # 0.2 radians
+    orientation_constraint.absolute_y_axis_tolerance = 0.3
+    orientation_constraint.absolute_z_axis_tolerance = 0.3
+    orientation_constraint.weight = 1.0
+    constraints.orientation_constraints.append(orientation_constraint)
+
+    from moveit.core.kinematic_constraints import construct_joint_constraint
+
+    joint1_constraint = JointConstraint()
+
+    joint1_constraint.joint_name = "joint_0"
+    joint1_constraint.position = 0.0
+    joint1_constraint.tolerance_below = 0.1
+    joint1_constraint.tolerance_above = 0.1
+    joint1_constraint.weight = 0.5
+
+    constraints.joint_constraints.append(joint1_constraint)
+
+    cobot_arm.set_goal_state(motion_plan_constraints=[constraints])
+
+    # plan to goal
+    plan_and_execute(cobot, cobot_arm, logger, sleep_time=2.0)
+
+
+def cobot_move_absolute(cobot, cobot_arm, logger, home_pose):
+
+    pose_goal = PoseStamped()
+    pose_goal.header.frame_id = "base_link"
+    pose_goal.pose = home_pose
 
     # set a tolerance for the goal
     # this is required in order to relax the constraints on the planner
@@ -164,7 +221,7 @@ def main():
             + "/config/joint_limits.yaml"
         )
         .trajectory_execution(
-            file_path=get_package_share_directory("py_demo")
+            file_path=get_package_share_directory("cobot_moveit_config")
             + "/config/moveit_controllers.yaml"
         )
         .pilz_cartesian_limits(
@@ -217,6 +274,8 @@ def main():
     # plan to goal
     #plan_and_execute(cobot, cobot_arm, logger, sleep_time=3.0)
 
+    home_pose = cobot_get_position(cobot_arm)
+
     while True:
         
         rclpy.spin_once(subsc)
@@ -230,6 +289,11 @@ def main():
                 dy = result['position'][1]
                 dz = result['position'][2]
                 cobot_move_relative(cobot, cobot_arm, logger, dx, dy, dz)
+                print("dx, dy, dz",dx,dy,dz)
+            elif result['befehl']=='speichere_startposition':
+                home_pose = cobot_get_position(cobot_arm)
+            elif result['befehl']=='zu_startposition':
+                cobot_move_absolute(cobot, cobot_arm, logger, home_pose)
             elif result['befehl']=='greifer':
                 print('not yet implemented')
             elif result['befehl']=='UNKNOWN_COMMAND':

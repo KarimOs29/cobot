@@ -6,7 +6,7 @@ import json
 import numpy as np
 import threading
 from vosk import Model, KaldiRecognizer
-
+import re
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -28,6 +28,7 @@ def finde_mikro_index():
     usb_index = None
     fallback_index = None
     for idx, device in enumerate(sd.query_devices()):
+        print(device['name'])
         if device['max_input_channels'] >= 1:
             name = device['name'].lower()
             if "usb" in name:
