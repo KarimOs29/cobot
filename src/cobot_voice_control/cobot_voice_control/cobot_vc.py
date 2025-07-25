@@ -78,18 +78,18 @@ def plan_and_execute(
 
 
 
-
-
-
     # hier unsere funktion move_relative drum
 def cobot_get_position(cobot_arm):
     current_state = cobot_arm.get_start_state()
+    while current_state is None:
+        print("Could not retrieve current robot state, retrying...")
+        time.sleep(0.2)
+        current_state = cobot_arm.get_start_state()
     current_pose = current_state.get_pose("TCP")
     return current_pose
 
 def cobot_move_relative(cobot, cobot_arm, logger, dx, dy, dz):
-    current_state = cobot_arm.get_start_state()
-    current_pose = current_state.get_pose("TCP")
+    current_pose = cobot_get_position(cobot_arm)
 
     pose_goal = PoseStamped()
     pose_goal.header.frame_id = "base_link"
