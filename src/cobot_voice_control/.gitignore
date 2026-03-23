@@ -1,4 +1,7 @@
 vosk-model-small-de-0.15
+roboter_position_unbereinigt.py
+roboter_position_alte_version.py
+cobot_vc_unbereinigt.py
 
 # Created by https://www.toptal.com/developers/gitignore/api/ros2,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=ros2,python

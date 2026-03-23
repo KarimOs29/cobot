@@ -2,6 +2,7 @@
 
 import time
 import rclpy
+import sys
 from rclpy.logging import get_logger
 from rclpy.node import Node
 
@@ -12,8 +13,6 @@ from moveit.core.robot_state import RobotState
 from moveit_configs_utils import MoveItConfigsBuilder
 from ament_index_python.packages import get_package_share_directory
 
-
-
 from moveit.planning import MoveItPy
 from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint, JointConstraint
 from shape_msgs.msg import SolidPrimitive
@@ -23,38 +22,25 @@ from cobot_voice_control.roboter_position import verarbeite_befehl
 #create class which inherit form ros2 node
 class SprachsteuerungNode(Node):
     def __init__(self):
-        super().__init__('sprachsteuerung_node')  #naming
-        self.subscription = self.create_subscription(  #registration subscriber
-            String,                                         #Nachrichtentyp
-            'sprachbefehl',                                 #Topic-Name
-            self.listener_callback,                         #wird bei jeder eingehenden nachricht ausgelöst wird
-            10)                                            
-#Queue-Größe(Warteschlange)
-
-        #self.subscription  # prevent unused warning
-        #self.result
+        super().__init__('sprachsteuerung_node')  
+        self.subscription = self.create_subscription(  
+            String,                                        
+            'sprachbefehl',                               
+            self.listener_callback,                       
+            10
+        )                                            
         self.result = None
 
-    #ohne diese funktion abonnieren wir das topic aber nichts passiert weil keine
-    #Callback-Funktion verknüpft ist
     def listener_callback(self, msg):
-        befehl = msg.data  #die eigentliche nachricht z.b. gehe nachrechts wird jetzt in befehl gespeichert
-        #self.get_logger().info(f'Empfange Sprachbefehl: "{befehl}"')
-
-        #hier wird der befehl letzenlich verarbeitet und
-        #in eine bewegung umgewandelt
+        befehl = msg.data  
         self.result = verarbeite_befehl(befehl)
-        print('l49: ', self.result) #ausgabe result zur kontrolle
+        print('l49: ', self.result)
 
     def get_result(self):
         return self.result
 
     def clear_result(self):
         self.result = None
-
-
-
-
 
 def plan_and_execute(
     robot,
@@ -64,7 +50,7 @@ def plan_and_execute(
 ):
 
     logger.info("Planning Trajectory")
-    plan_result = planning_component.plan()  # <- KEINE Parameter!
+    plan_result = planning_component.plan()  
 
     if plan_result:
         logger.info("Executing Plan")
@@ -75,10 +61,6 @@ def plan_and_execute(
 
     time.sleep(sleep_time)
 
-
-
-
-    # hier unsere funktion move_relative drum
 def cobot_get_position(cobot_arm):
     current_state = cobot_arm.get_start_state()
     while current_state is None:
@@ -242,15 +224,8 @@ def main():
         config_dict=moveit_config
     )
     cobot_arm = cobot.get_planning_component("arm_group")
-    #logger.info("✅ MoveItPy initialisiert")
-
-#wir initialsieren ros2 nodes,pub,sub, usw...
     rclpy.init()
-#wir erzeugen das node mit namen subsc springen also hoch in die klasse
     subsc = SprachsteuerungNode()
-
-#node läuft jetzt dauerhaft und wartet auf topic
-#wenn topic -> listener_callback
     logger = get_logger("moveit_py.sprachsteuerung")
 
 
@@ -270,7 +245,6 @@ def main():
 
     # move to stable position
   
-
     # plan to goal
     #plan_and_execute(cobot, cobot_arm, logger, sleep_time=3.0)
 
@@ -304,7 +278,6 @@ def main():
             subsc.clear_result()
 
     rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()
